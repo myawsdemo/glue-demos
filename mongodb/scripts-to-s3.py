@@ -1,55 +1,51 @@
 import sys
 from awsglue.transforms import *
 from awsglue.utils import getResolvedOptions
-from pyspark.context import SparkContext, SparkConf
+from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.job import Job
-import time
 
-# 获取传递给AWS Glue作业的参数
-args = getResolvedOptions(sys.argv, ['JOB_NAME'])
-
-# 创建SparkContext和GlueContext
+args = getResolvedOptions(sys.argv, ["JOB_NAME"])
 sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
-
 job = Job(glueContext)
-job.init(args['JOB_NAME'], args)
+job.init(args["JOB_NAME"], args)
 
-documentdb_uri = "mongodb://docdb-123.cluster-c8gkhofhtia4.us-east-1.docdb.amazonaws.com:27017"
-
-read_docdb_options = {
-    "uri": documentdb_uri,
-    "database": "betgame",
-    "collection": "{COLLECTION-NAME}",
-    "username": "1234",
-    "password": "xxxxx",
-    "ssl": "true",
-    "ssl.domain_match": "false",
-    "partitioner": "MongoSamplePartitioner",
-    "partitionerOptions.partitionSizeMB": "10",
-    "partitionerOptions.partitionKey": "_id"
-}
-
-
-# 读取MongoDB数据源
-mongo_dynamic_frame = glueContext.create_dynamic_frame.from_options(connection_type="documentdb",
-                                                               connection_options=read_docdb_options)
-
-
-# 转换数据，增加ID列，并写入Amazon S3
-output_path = "s3://mongodb-glue-test"
-output_format = "parquet"
-output_mode = "append"
-
-glueContext.write_dynamic_frame.from_options(
-    frame=mongo_dynamic_frame,
-    connection_type="s3",
-    connection_options={
-        "path": output_path,
-        "partitionKeys": ["user_id"]
-    },
-    format=output_format,
-    transformation_ctx="output"
+# Script generated for node Data Catalog table
+DataCatalogtable_node1 = glueContext.create_dynamic_frame.from_catalog(
+    database="betgame-db",
+    table_name="mongobetgame_balance_log",
+    transformation_ctx="DataCatalogtable_node1",
+    additional_options = {"database":"betgame",
+            "collection":"balance_log"}
 )
+
+# Script generated for node ApplyMapping
+ApplyMapping_node2 = ApplyMapping.apply(
+    frame=DataCatalogtable_node1,
+    mappings=[
+        ("args", "array", "args", "array"),
+        ("user_id", "string", "user_id", "string"),
+        ("before", "double", "before", "double"),
+        ("currency", "string", "currency", "string"),
+        ("_id", "string", "_id", "string"),
+        ("after", "double", "after", "double"),
+        ("event", "string", "event", "string"),
+        ("create_at", "double", "create_at", "double"),
+        ("desc", "string", "desc", "string"),
+    ],
+    transformation_ctx="ApplyMapping_node2",
+)
+
+# Script generated for node S3 bucket
+S3bucket_node3 = glueContext.write_dynamic_frame.from_options(
+    frame=ApplyMapping_node2,
+    connection_type="s3",
+    format="glueparquet",
+    connection_options={"path": "s3://athena-shard-test", "partitionKeys": ["user_id"]},
+    format_options={"compression": "snappy"},
+    transformation_ctx="S3bucket_node3",
+)
+
+job.commit()
